@@ -7,6 +7,9 @@ const EmployeModel = require('./models/employee');
 const multer = require("multer");
 const path = require("path");
 const ProductModel = require('./models/productmodel');
+const stripe = require('stripe')('sk_test_51PE2C6SG7iZJBYVQopNteZRiSLrCakSVfeTxBwFnMIU8pkHoFaQXnG2hbeOaV0FA18XeDc1Zk1vqc6uSQWKPTOda00jb7R6Eud');
+const nodemailer = require('nodemailer');
+let loggedInUserEmail; 
 
 // Define the JWT secret key directly in your code
 const JWT_SECRET_KEY = "123456789";
@@ -62,6 +65,8 @@ app.post("/login", (req, res) => {
                     return res.status(500).json("Internal Server Error");
                 }
                 if (result) {
+                    // Store user email
+                    loggedInUserEmail = user.email;
                     // Generate JWT token with email and role
                     const token = jwt.sign({ email: user.email, role: user.role }, JWT_SECRET_KEY);
                     res.json({ token, role: user.role });
@@ -75,6 +80,7 @@ app.post("/login", (req, res) => {
             res.status(500).json("Internal Server Error");
         });
 });
+
 
 app.post("/register", upload.single("image"), (req, res) => {
     const { name, email, password,role } = req.body;
@@ -241,6 +247,98 @@ app.get("/product/:productId", (req, res) => {
 });
 
 
+app.post('/create-payment-intent', async (req, res) => {
+    try {
+      const { amount } = req.body;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount, // amount should be in cents
+        currency: 'inr', // change to your currency
+      });
+      res.json({ clientSecret: paymentIntent.client_secret });
+    } catch (error) {
+      console.error('Error creating payment intent:', error);
+      res.status(500).json({ error: 'Failed to create payment intent' });
+    }
+  });
+  
+
+ // Example route where order is confirmed
+// Example route where order is confirmed
+app.post('/confirm-order', (req, res) => {
+    // Logic to confirm the order
+
+    // Get the user's email from the stored variable
+    const userEmail = loggedInUserEmail;
+
+    // Fetch admin's email and password from the database
+    fetchAdminCredentialsFromDatabase()
+        .then(adminCredentials => {
+            const { email: adminEmail, password: adminPassword } = adminCredentials;
+            
+            // Send email notification to the user's email using admin's credentials
+            const subject = 'Order Confirmation';
+            const text = 'Your order has been confirmed. Thank you for shopping with us!';
+            sendEmail(adminEmail, adminPassword, userEmail, subject, text);
+            
+            // Respond with success message
+            res.json({ message: 'Order confirmed successfully' });
+        })
+        .catch(err => {
+            console.error('Error fetching admin credentials:', err);
+            res.status(500).json({ error: 'Internal Server Error' });
+        });
+});
+
+// Function to fetch admin's email and password from the database
+function fetchAdminCredentialsFromDatabase() {
+    return new Promise((resolve, reject) => {
+        // Replace this with your database query to fetch admin's email and password based on role
+        EmployeModel.findOne({ role: 'admin' })
+            .then(admin => {
+                if (admin) {
+                    const adminCredentials = {
+                        email: admin.email, // Admin's email address
+                        password: admin.password // Admin's password
+                    };
+                    resolve(adminCredentials);
+                } else {
+                    reject(new Error('Admin not found'));
+                }
+            })
+            .catch(err => {
+                reject(err);
+            });
+    });
+}
+
+// Function to send email
+function sendEmail(adminEmail, adminPassword, recipientEmail, subject, text) {
+    // Create nodemailer transporter
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user: adminEmail, // Admin's Gmail email address
+            pass: adminPassword // Admin's Gmail password
+        }
+    });
+
+    // Email message options
+    const mailOptions = {
+        from: adminEmail, // Admin's Gmail email address
+        to: recipientEmail,
+        subject: subject,
+        text: text
+    };
+
+    // Send email
+    transporter.sendMail(mailOptions, function(error, info){
+        if (error) {
+            console.error('Error sending email:', error);
+        } else {
+            console.log('Email sent:', info.response);
+        }
+    });
+}
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

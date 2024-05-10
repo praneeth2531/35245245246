@@ -6,11 +6,30 @@ import Footer from './footer';
 const PaymentComponent = () => {
   const [showAlert, setShowAlert] = useState(false);
 
+
   const handleProceed = (e) => {
     e.preventDefault();
     setShowAlert(true);
+  
+    // Send a request to the backend to trigger email sending
+    fetch('http://localhost:3001/confirm-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}` // Assuming you store the JWT token in localStorage
+      }
+    })
+    .then(response => {
+      if (response.ok) {
+        console.log('Email sent successfully');
+      } else {
+        console.error('Failed to send email');
+      }
+    })
+    .catch(error => {
+      console.error('Error sending email:', error);
+    });
   };
-
   return (
     <div>
       <Navbar />
