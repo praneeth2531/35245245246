@@ -82,3 +82,15 @@
   .checkout-button:hover {
     background-color: #0056b3;
   }
+
+  .footer {
+  
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #f8f9fa; /* Set your desired background color */
+    padding: 40px; 
+    margin-top: 40px;
+    text-align: center;
+  }
+  

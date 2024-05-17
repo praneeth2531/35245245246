@@ -45,7 +45,7 @@ function CarouselComponent() {
                                 <h1>BEST DISCOUNTS %</h1>
                                 <h6>&#9827; "Shopping: where every bag holds a little piece of happiness"</h6>
                                 <h4>"Scroll, click, buy, repeat: the shopping mantra."</h4>
-                                <Link to="/bags">
+                                <Link to="/shoes">
                                 <button className='btn btn-primary mt-3'>SHOP NOW &rarr;</button>
                                 </Link>
                             </div>

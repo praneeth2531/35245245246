@@ -7,9 +7,10 @@ const EmployeModel = require('./models/employee');
 const multer = require("multer");
 const path = require("path");
 const ProductModel = require('./models/productmodel');
-const stripe = require('stripe')('sk_test_51PE2C6SG7iZJBYVQopNteZRiSLrCakSVfeTxBwFnMIU8pkHoFaQXnG2hbeOaV0FA18XeDc1Zk1vqc6uSQWKPTOda00jb7R6Eud');
+const Razorpay = require('razorpay');
 const nodemailer = require('nodemailer');
 let loggedInUserEmail; 
+const crypto = require('crypto');
 
 // Define the JWT secret key directly in your code
 const JWT_SECRET_KEY = "123456789";
@@ -247,23 +248,6 @@ app.get("/product/:productId", (req, res) => {
 });
 
 
-app.post('/create-payment-intent', async (req, res) => {
-    try {
-      const { amount } = req.body;
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount, // amount should be in cents
-        currency: 'inr', // change to your currency
-      });
-      res.json({ clientSecret: paymentIntent.client_secret });
-    } catch (error) {
-      console.error('Error creating payment intent:', error);
-      res.status(500).json({ error: 'Failed to create payment intent' });
-    }
-  });
-  
-
- // Example route where order is confirmed
-// Example route where order is confirmed
 app.post('/confirm-order', (req, res) => {
     // Logic to confirm the order
 
@@ -289,56 +273,95 @@ app.post('/confirm-order', (req, res) => {
         });
 });
 
-// Function to fetch admin's email and password from the database
-function fetchAdminCredentialsFromDatabase() {
-    return new Promise((resolve, reject) => {
-        // Replace this with your database query to fetch admin's email and password based on role
-        EmployeModel.findOne({ role: 'admin' })
-            .then(admin => {
-                if (admin) {
-                    const adminCredentials = {
-                        email: admin.email, // Admin's email address
-                        password: admin.password // Admin's password
-                    };
-                    resolve(adminCredentials);
-                } else {
-                    reject(new Error('Admin not found'));
-                }
-            })
-            .catch(err => {
-                reject(err);
-            });
-    });
-}
+app.post('/confirm-order', (req, res) => {
+    
+
+    // Get the user's email from the stored variable
+    const userEmail = loggedInUserEmail;
+
+    // Send email notification to the user's email using nodemailer
+    const subject = 'Order Confirmation';
+    const text = 'Your order has been confirmed. Thank you for shopping with us!';
+    sendEmail(userEmail, subject, text)
+        .then(() => {
+            // Respond with success message
+            res.json({ message: 'Order confirmed successfully' });
+        })
+        .catch(err => {
+            console.error('Error sending email:', err);
+            res.status(500).json({ error: 'Internal Server Error' });
+        });
+});
 
 // Function to send email
-function sendEmail(adminEmail, adminPassword, recipientEmail, subject, text) {
-    // Create nodemailer transporter
-    const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: adminEmail, // Admin's Gmail email address
-            pass: adminPassword // Admin's Gmail password
-        }
-    });
+function sendEmail(recipientEmail, subject, text) {
+    return new Promise((resolve, reject) => {
+        // Create nodemailer transporter
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: 'praneethkoti2531@gmail.com', 
+                pass: 'Praneeth@12' 
+            }
+        });
 
-    // Email message options
-    const mailOptions = {
-        from: adminEmail, // Admin's Gmail email address
-        to: recipientEmail,
-        subject: subject,
-        text: text
-    };
+        // Email message options
+        const mailOptions = {
+            from: 'Shopify.ecommerce@gmail.com', 
+            to: recipientEmail,
+            subject: subject,
+            text: text
+        };
 
-    // Send email
-    transporter.sendMail(mailOptions, function(error, info){
-        if (error) {
-            console.error('Error sending email:', error);
-        } else {
-            console.log('Email sent:', info.response);
-        }
+        // Send email
+        transporter.sendMail(mailOptions, function(error, info){
+            if (error) {
+                console.error('Error sending email:', error);
+                reject(error);
+            } else {
+                console.log('Email sent:', info.response);
+                resolve();
+            }
+        });
     });
 }
+
+
+
+const razorpay = new Razorpay({
+    key_id: 'rzp_test_TuBdAmrqCbcCVh',
+    key_secret: 'HT59gDsGW4Is1NyKh5RPTzZV'
+});
+
+// Endpoint to create an order
+app.post('/createOrder', async (req, res) => {
+    const { amount, currency, receipt } = req.body;
+    const options = {
+        amount: amount, // Amount in the smallest currency unit (paise)
+        currency: currency, // Currency code (e.g., "INR")
+        receipt: receipt // Unique identifier for the transaction
+    };
+    try {
+        const order = await razorpay.orders.create(options);
+        res.json(order);
+    } catch (error) {
+        res.status(500).send(error);
+    }
+});
+
+// Endpoint to verify payment
+app.post('/verifyPayment', (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const hmac = crypto.createHmac('sha256', 'HT59gDsGW4Is1NyKh5RPTzZV'); // Use sha256 as the hashing algorithm
+    hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
+    const generatedSignature = hmac.digest('hex');
+    if (generatedSignature === razorpay_signature) {
+        res.send({ status: 'success' });
+    } else {
+        res.status(400).send({ status: 'failure' });
+    }
+});
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

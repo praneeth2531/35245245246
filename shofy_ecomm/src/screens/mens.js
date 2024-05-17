@@ -76,6 +76,7 @@ const MensList = () => {
                                                         variant="top"
                                                         src={productImages[product._id]}
                                                         style={{ objectFit: 'cover', height: '200px' }}
+                                                        className="img-fluid" // Make the image responsive
                                                     />
                                                 </div>
                                                 <Card.Body>
